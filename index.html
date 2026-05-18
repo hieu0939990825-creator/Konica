@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tra Cứu ITEM CODE</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: #f5f7fb; color: #333; padding: 12px; font-size: 15px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 15px; padding: 10px 0; }
+        header h1 { font-size: 20px; color: #1e3a8a; }
+        .status-box { background: #fff; padding: 10px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px; text-align: center; }
+        .status-text { font-size: 13px; color: #10b981; font-weight: bold; }
+        .search-box { background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+        .tab-btn { flex: 1; padding: 12px; border: none; background: #e2e8f0; color: #475569; font-weight: bold; border-radius: 8px; font-size: 14px; cursor: pointer; }
+        .tab-btn.active { background: #2563eb; color: #fff; }
+        .search-input { width: 100%; padding: 14px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 16px; outline: none; text-transform: uppercase; }
+        .search-input:focus { border-color: #2563eb; }
+        .info-tip { font-size: 11px; color: #64748b; margin-top: 5px; font-style: italic; }
+        .results-container { display: flex; flex-direction: column; gap: 10px; }
+        .card { background: #fff; border-radius: 10px; padding: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); border-left: 5px solid #3b82f6; animation: fadeIn 0.3s ease; }
+        .card.phukien { border-left-color: #ec4899; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; }
+        .item-code { font-weight: bold; font-size: 16px; color: #1e3a8a; }
+        .no-badge { background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .info-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+        .info-label { color: #64748b; }
+        .info-value { font-weight: 600; color: #0f172a; }
+        .info-value.qty { color: #ef4444; font-size: 16px; }
+        .info-value.khay { color: #10b981; background: #f0fdf4; padding: 1px 6px; border-radius: 4px; }
+        .desc-text { font-size: 13px; color: #64748b; margin-top: 6px; background: #f8fafc; padding: 6px; border-radius: 4px; }
+        .empty-message { text-align: center; color: #94a3b8; padding: 30px 10px; font-size: 14px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>TRA CỨU ITEM CODE 📦</h1>
+    </header>
+
+    <div class="status-box">
+        <div id="status" class="status-text">⏳ Đang tải dữ liệu từ hệ thống...</div>
+    </div>
+
+    <div class="search-box">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('Mực')">MỰC</button>
+            <button class="tab-btn" onclick="switchTab('PHỤ KIỆN')">PHỤ KIỆN</button>
+        </div>
+        <input type="text" id="searchInput" class="search-input" placeholder="Nhập từ 4 chữ cái để tìm..." oninput="handleSearch()">
+        <div class="info-tip">Dữ liệu tự động cập nhật từ file gốc của kho.</div>
+    </div>
+
+    <div id="results" class="results-container">
+        <div class="empty-message">Vui lòng nhập từ 4 ký tự trở lên để xem kết quả.</div>
+    </div>
+</div>
+
+<script>
+    let dbData = { "Mực": [], "PHỤ KIỆN": [] };
+    let currentTab = "Mực";
+    
+    // TÊN FILE EXCEL GỐC ĐỂ TRÊN MẠNG (Thay đổi nếu bạn đổi tên file)
+    const excelFileName = "data.xlsx"; 
+
+    window.onload = function() {
+        fetchExcelFromServer();
+    };
+
+    // Tự động tải file Excel từ server về máy người dùng
+    function fetchExcelFromServer() {
+        // Thêm thông số ngẫu nhiên để tránh trình duyệt lưu bộ nhớ đệm (cache) file cũ
+        fetch(excelFileName + '?v=' + Math.random())
+            .then(res => {
+                if (!res.ok) throw new Error("Không tìm thấy file " + excelFileName);
+                return res.arrayBuffer();
+            })
+            .then(ab => {
+                const data = new Uint8Array(ab);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                dbData = { "Mực": [], "PHỤ KIỆN": [] };
+
+                workbook.SheetNames.forEach(sheetName => {
+                    let name = sheetName.trim().toLowerCase();
+                    if (name === 'mực' || name === 'muc') {
+                        dbData["Mực"] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                    } else if (name === 'phụ kiện' || name === 'phu kien') {
+                        dbData["PHỤ KIỆN"] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+                    }
+                });
+
+                document.getElementById('status').innerText = ` 🟢 Hệ thống sẵn sàng (Mực: ${dbData["Mực"].length} | Phụ kiện: ${dbData["PHỤ KIỆN"].length})`;
+                document.getElementById('status').style.color = "#10b981";
+                handleSearch();
+            })
+            .catch(err => {
+                document.getElementById('status').innerText = "❌ Lỗi: Không thể tải file dữ liệu kho dữ liệu gốc.";
+                document.getElementById('status').style.color = "#ef4444";
+                console.error(err);
+            });
+    }
+
+    function switchTab(tabName) {
+        currentTab = tabName;
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if(btn.innerText.toUpperCase() === tabName.toUpperCase()) btn.classList.add('active');
+        });
+        handleSearch();
+    }
+
+    function handleSearch() {
+        const keyword = document.getElementById('searchInput').value.trim().toUpperCase();
+        const resultsContainer = document.getElementById('results');
+        
+        if (keyword.length < 4) {
+            resultsContainer.innerHTML = `<div class="empty-message">Vui lòng nhập từ 4 ký tự trở lên để xem kết quả.</div>`;
+            return;
+        }
+
+        const currentListData = dbData[currentTab] || [];
+        const filtered = currentListData.filter(item => {
+            const itemCodeKey = Object.keys(item).find(key => key.toUpperCase().replace(/\s/g, '') === 'ITEMCODE');
+            return itemCodeKey && item[itemCodeKey] ? String(item[itemCodeKey]).toUpperCase().includes(keyword) : false;
+        });
+
+        if (filtered.length === 0) {
+            resultsContainer.innerHTML = `<div class="empty-message">❌ Không tìm thấy mã nào chứa "${keyword}"</div>`;
+            return;
+        }
+
+        let htmlCards = '';
+        filtered.forEach(item => {
+            const noVal = getValueByKey(item, 'NO');
+            const codeVal = getValueByKey(item, 'ITEMCODE');
+            const descVal = getValueByKey(item, 'ITEMDESCRIPTION') || getValueByKey(item, 'DESCRIPTION');
+            const qtyVal = getValueByKey(item, 'QTY') || getValueByKey(item, 'QUANTITY');
+            const khayVal = getValueByKey(item, 'KHAY');
+            const cardClass = currentTab === 'PHỤ KIỆN' ? 'card phukien' : 'card';
+
+            htmlCards += `
+                <div class="${cardClass}">
+                    <div class="card-header">
+                        <span class="item-code">${codeVal || 'N/A'}</span>
+                        <span class="no-badge">No: ${noVal || '-'}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-row"><span class="info-label">Số lượng (Qty):</span><span class="info-value qty">${qtyVal !== undefined ? qtyVal : 0}</span></div>
+                        <div class="info-row"><span class="info-label">Vị trí Khay:</span><span class="info-value khay">${khayVal || '---'}</span></div>
+                        ${descVal ? `<div class="desc-text"><strong>Mô tả:</strong> ${descVal}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+        resultsContainer.innerHTML = htmlCards;
+    }
+
+    function getValueByKey(obj, standardKey) {
+        const foundKey = Object.keys(obj).find(k => k.toUpperCase().replace(/\s/g, '') === standardKey);
+        return foundKey ? obj[foundKey] : undefined;
+    }
+</script>
+</body>
+</html>
