@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tra Cứu ITEM CODE</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: #f5f7fb; color: #333; padding: 12px; font-size: 15px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 15px; padding: 10px 0; }
+        header h1 { font-size: 20px; color: #1e3a8a; }
+        .status-box { background: #fff; padding: 10px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px; text-align: center; }
+        .status-text { font-size: 13px; color: #10b981; font-weight: bold; }
+        .search-box { background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        .search-row { display: flex; gap: 8px; }
+        .search-input { flex: 1; min-width: 0; padding: 14px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 16px; outline: none; text-transform: uppercase; }
+        .search-input:focus { border-color: #2563eb; }
+        .scan-btn { flex: none; width: 54px; border: none; border-radius: 8px; background: #2563eb; color: #fff; font-size: 24px; cursor: pointer; }
+        .scan-btn:active { background: #1d4ed8; }
+        .info-tip { font-size: 11px; color: #64748b; margin-top: 5px; font-style: italic; }
+
+        .history { margin-top: 12px; }
+        .history-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b; margin-bottom: 6px; }
+        .history-clear { background: none; border: none; color: #ef4444; font-size: 12px; cursor: pointer; padding: 2px 4px; }
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .chip { background: #eff6ff; color: #1e3a8a; border: 1px solid #bfdbfe; border-radius: 16px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+        .results-container { display: flex; flex-direction: column; gap: 10px; }
+        .result-count { font-size: 12px; color: #64748b; padding: 0 4px; }
+        .card { background: #fff; border-radius: 10px; padding: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); border-left: 5px solid #3b82f6; animation: fadeIn 0.3s ease; }
+        .card.phukien { border-left-color: #ec4899; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; }
+        .item-code { font-weight: bold; font-size: 16px; color: #1e3a8a; word-break: break-all; }
+        .badges { display: flex; gap: 6px; flex: none; }
+        .no-badge { background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .tab-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; background: #dbeafe; color: #1d4ed8; }
+        .card.phukien .tab-badge { background: #fce7f3; color: #be185d; }
+        .info-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+        .info-label { color: #64748b; }
+        .info-value { font-weight: 600; color: #0f172a; }
+        .info-value.qty { color: #ef4444; font-size: 16px; }
+        .info-value.khay { color: #10b981; background: #f0fdf4; padding: 1px 6px; border-radius: 4px; }
+        .desc-text { font-size: 13px; color: #64748b; margin-top: 6px; background: #f8fafc; padding: 6px; border-radius: 4px; }
+        .empty-message { text-align: center; color: #94a3b8; padding: 30px 10px; font-size: 14px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Màn hình quét */
+        .scanner { position: fixed; inset: 0; background: #000; z-index: 100; display: none; flex-direction: column; }
+        .scanner.open { display: flex; }
+        .scanner video { flex: 1; width: 100%; min-height: 0; object-fit: cover; }
+        .scan-frame { position: absolute; left: 8%; right: 8%; top: 50%; height: 26%; transform: translateY(-60%); border: 3px solid #22c55e; border-radius: 12px; box-shadow: 0 0 0 100vmax rgba(0,0,0,0.45); pointer-events: none; }
+        .scan-frame::after { content: ""; position: absolute; left: 6px; right: 6px; top: 50%; height: 2px; background: #ef4444; }
+        .scan-msg { position: absolute; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 16px); text-align: center; color: #fff; font-size: 14px; padding: 0 16px; text-shadow: 0 1px 3px #000; }
+        .scan-actions { position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); display: flex; justify-content: center; gap: 14px; }
+        .scan-actions button { border: none; border-radius: 28px; padding: 14px 24px; font-size: 15px; font-weight: 700; cursor: pointer; }
+        .btn-close { background: #fff; color: #0f172a; }
+        .btn-torch { background: rgba(255,255,255,0.2); color: #fff; display: none; }
+        .btn-torch.on { background: #facc15; color: #000; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>TRA CỨU ITEM CODE 📦</h1>
+    </header>
+
+    <div class="status-box">
+        <div id="status" class="status-text">⏳ Đang tải dữ liệu từ hệ thống...</div>
+    </div>
+
+    <div class="search-box">
+        <div class="search-row">
+            <input type="text" id="searchInput" class="search-input" placeholder="Nhập mã hoặc tên (từ 4 ký tự)..." oninput="onTyping()" autocomplete="off" autocorrect="off" spellcheck="false">
+            <button class="scan-btn" onclick="openScanner()" aria-label="Quét mã vạch">📷</button>
+        </div>
+        <div class="info-tip">Tìm cùng lúc Mực và Phụ kiện, theo mã hoặc mô tả. Bỏ qua dấu cách, dấu gạch.</div>
+        <div id="history" class="history" style="display:none"></div>
+    </div>
+
+    <div id="results" class="results-container">
+        <div class="empty-message">Nhập từ 4 ký tự trở lên hoặc bấm 📷 để quét mã vạch.</div>
+    </div>
+</div>
+
+<!-- Màn hình quét mã vạch -->
+<div id="scanner" class="scanner">
+    <video id="scanVideo" playsinline muted autoplay></video>
+    <div class="scan-frame"></div>
+    <div id="scanMsg" class="scan-msg">Đang mở camera...</div>
+    <div class="scan-actions">
+        <button id="torchBtn" class="btn-torch" onclick="toggleTorch()">🔦 Đèn</button>
+        <button class="btn-close" onclick="closeScanner()">Đóng</button>
+    </div>
+</div>
+
+<script>
+    const excelFileName = "data.xlsx";
+    const TAB_LABEL = { "Mực": "MỰC", "PHỤ KIỆN": "PHỤ KIỆN" };
+    const HISTORY_KEY = "tracuu_history_v1";
+    const HISTORY_MAX = 8;
+
+    let allItems = [];
+    let historyTimer = null;
+
+    window.onload = function () {
+        renderHistory();
+        fetchExcelFromServer();
+    };
+
+    // ---------- Tiện ích ----------
+    function esc(v) {
+        return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    // Bỏ mọi ký tự không phải chữ/số: "a8k-3290" -> "A8K3290"
+    function norm(s) {
+        return String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    }
+    function getValueByKey(obj, standardKey) {
+        const foundKey = Object.keys(obj).find(k => k.toUpperCase().replace(/\s/g, '') === standardKey);
+        return foundKey ? obj[foundKey] : undefined;
+    }
+
+    // ---------- Tải dữ liệu ----------
+    function fetchExcelFromServer() {
+        fetch(excelFileName + '?v=' + Math.random())
+            .then(res => {
+                if (!res.ok) throw new Error("Không tìm thấy file " + excelFileName);
+                return res.arrayBuffer();
+            })
+            .then(ab => {
+                const workbook = XLSX.read(new Uint8Array(ab), { type: 'array' });
+                const counts = { "Mực": 0, "PHỤ KIỆN": 0 };
+                allItems = [];
+
+                workbook.SheetNames.forEach(sheetName => {
+                    const name = sheetName.trim().toLowerCase();
+                    let tab = null;
+                    if (name === 'mực' || name === 'muc') tab = "Mực";
+                    else if (name === 'phụ kiện' || name === 'phu kien') tab = "PHỤ KIỆN";
+                    if (!tab) return;
+
+                    XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]).forEach(item => {
+                        const code = getValueByKey(item, 'ITEMCODE');
+                        if (!code) return;
+                        const desc = getValueByKey(item, 'ITEMDESCRIPTION') || getValueByKey(item, 'DESCRIPTION') || '';
+                        allItems.push({
+                            tab,
+                            no: getValueByKey(item, 'NO'),
+                            code: String(code),
+                            desc: String(desc),
+                            qty: getValueByKey(item, 'QTY') || getValueByKey(item, 'QUANTITY'),
+                            khay: getValueByKey(item, 'KHAY'),
+                            nCode: norm(code),
+                            nText: norm(code + ' ' + desc)
+                        });
+                        counts[tab]++;
+                    });
+                });
+
+                const st = document.getElementById('status');
+                st.innerText = ` 🟢 Hệ thống sẵn sàng (Mực: ${counts["Mực"]} | Phụ kiện: ${counts["PHỤ KIỆN"]})`;
+                st.style.color = "#10b981";
+                handleSearch();
+            })
+            .catch(err => {
+                const st = document.getElementById('status');
+                st.innerText = "❌ Lỗi: Không thể tải file dữ liệu kho dữ liệu gốc.";
+                st.style.color = "#ef4444";
+                console.error(err);
+            });
+    }
+
+    // ---------- Tìm kiếm ----------
+    function onTyping() {
+        handleSearch();
+        // Lưu lịch sử sau khi ngừng gõ ~1 giây và có kết quả
+        clearTimeout(historyTimer);
+        historyTimer = setTimeout(() => {
+            const kw = document.getElementById('searchInput').value.trim().toUpperCase();
+            if (norm(kw).length >= 4 && lastResultCount > 0) saveHistory(kw);
+        }, 1000);
+    }
+
+    let lastResultCount = 0;
+
+    function search(keywordRaw) {
+        const tokens = keywordRaw.toUpperCase().split(/[\s\-_\/.,]+/).map(norm).filter(Boolean);
+        const joined = tokens.join('');
+        if (!joined) return [];
+
+        let found = allItems.filter(it => tokens.every(t => it.nText.includes(t)));
+
+        // Dự phòng: mã vạch quét ra có thêm tiền tố/hậu tố quanh ITEM CODE
+        if (found.length === 0 && joined.length >= 5) {
+            found = allItems.filter(it => it.nCode.length >= 5 && joined.includes(it.nCode));
+        }
+
+        const score = it => it.nCode === joined ? 0 : it.nCode.startsWith(joined) ? 1 : it.nCode.includes(joined) ? 2 : 3;
+        return found.map(it => ({ it, s: score(it) })).sort((a, b) => a.s - b.s).map(x => x.it);
+    }
+
+    function handleSearch(force) {
+        const keyword = document.getElementById('searchInput').value.trim().toUpperCase();
+        const box = document.getElementById('results');
+        lastResultCount = 0;
+
+        if (!force && norm(keyword).length < 4) {
+            box.innerHTML = `<div class="empty-message">Nhập từ 4 ký tự trở lên hoặc bấm 📷 để quét mã vạch.</div>`;
+            renderHistory();
+            return;
+        }
+        document.getElementById('history').style.display = 'none';
+
+        const filtered = search(keyword);
+        lastResultCount = filtered.length;
+
+        if (filtered.length === 0) {
+            box.innerHTML = `<div class="empty-message">❌ Không tìm thấy mã nào chứa "${esc(keyword)}"</div>`;
+            return;
+        }
+
+        let html = `<div class="result-count">Tìm thấy ${filtered.length} kết quả</div>`;
+        filtered.forEach(it => {
+            const cardClass = it.tab === 'PHỤ KIỆN' ? 'card phukien' : 'card';
+            html += `
+                <div class="${cardClass}">
+                    <div class="card-header">
+                        <span class="item-code">${esc(it.code)}</span>
+                        <span class="badges">
+                            <span class="tab-badge">${TAB_LABEL[it.tab]}</span>
+                            <span class="no-badge">No: ${esc(it.no ?? '-')}</span>
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-row"><span class="info-label">Số lượng (Qty):</span><span class="info-value qty">${esc(it.qty !== undefined ? it.qty : 0)}</span></div>
+                        <div class="info-row"><span class="info-label">Vị trí Khay:</span><span class="info-value khay">${esc(it.khay || '---')}</span></div>
+                        ${it.desc ? `<div class="desc-text"><strong>Mô tả:</strong> ${esc(it.desc)}</div>` : ''}
+                    </div>
+                </div>`;
+        });
+        box.innerHTML = html;
+    }
+
+    // ---------- Lịch sử tra cứu ----------
+    function loadHistory() {
+        try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch (e) { return []; }
+    }
+    function saveHistory(kw) {
+        try {
+            let list = loadHistory().filter(x => norm(x) !== norm(kw));
+            list.unshift(kw);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, HISTORY_MAX)));
+        } catch (e) { /* bỏ qua nếu trình duyệt chặn lưu */ }
+    }
+    function clearHistory() {
+        try { localStorage.removeItem(HISTORY_KEY); } catch (e) {}
+        renderHistory();
+    }
+    function renderHistory() {
+        const el = document.getElementById('history');
+        const list = loadHistory();
+        if (!list.length) { el.style.display = 'none'; return; }
+        el.style.display = 'block';
+        el.innerHTML = `
+            <div class="history-head"><span>Tra gần đây</span><button class="history-clear" onclick="clearHistory()">Xóa</button></div>
+            <div class="chips">${list.map((x, i) => `<button class="chip" data-i="${i}">${esc(x)}</button>`).join('')}</div>`;
+        el.querySelectorAll('.chip').forEach(btn => {
+            btn.onclick = () => {
+                const kw = list[btn.dataset.i];
+                document.getElementById('searchInput').value = kw;
+                handleSearch(true);
+                saveHistory(kw);
+            };
+        });
+    }
+
+    // ---------- Quét mã vạch bằng camera ----------
+    const ZXING_URL = "https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";
+    const NATIVE_FORMATS = ['code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar'];
+    const VIDEO_CONSTRAINTS = { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } };
+
+    let scanning = false, scanStream = null, scanTimer = null, zxingReader = null, torchOn = false;
+
+    function setScanMsg(t) { document.getElementById('scanMsg').textContent = t; }
+
+    function loadZxing() {
+        return new Promise((resolve, reject) => {
+            if (window.ZXing) return resolve();
+            const s = document.createElement('script');
+            s.src = ZXING_URL;
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('Không tải được bộ quét'));
+            document.head.appendChild(s);
+        });
+    }
+
+    async function openScanner() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Không mở được camera. Web cần chạy bằng HTTPS (không mở trực tiếp file).');
+            return;
+        }
+        document.getElementById('scanner').classList.add('open');
+        document.getElementById('torchBtn').style.display = 'none';
+        setScanMsg('Đang mở camera...');
+        scanning = true;
+
+        try {
+            let nativeFormats = [];
+            if ('BarcodeDetector' in window) {
+                const supported = await BarcodeDetector.getSupportedFormats();
+                nativeFormats = NATIVE_FORMATS.filter(f => supported.includes(f));
+            }
+            if (nativeFormats.length) await startNative(nativeFormats);
+            else await startZxing();
+            if (scanning) setScanMsg('Đưa mã vạch vào khung xanh');
+        } catch (e) {
+            console.error(e);
+            const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+            setScanMsg(denied ? 'Chưa được cấp quyền camera. Hãy cho phép camera trong cài đặt trình duyệt rồi thử lại.'
+                              : 'Không mở được camera: ' + (e.message || e.name));
+        }
+    }
+
+    async function startNative(formats) {
+        const video = document.getElementById('scanVideo');
+        scanStream = await navigator.mediaDevices.getUserMedia({ video: VIDEO_CONSTRAINTS, audio: false });
+        video.srcObject = scanStream;
+        await video.play();
+        setupTorch();
+        tryContinuousFocus();
+
+        const detector = new BarcodeDetector({ formats });
+        let busy = false;
+        scanTimer = setInterval(async () => {
+            if (busy || !scanning || video.readyState < 2) return;
+            busy = true;
+            try {
+                const codes = await detector.detect(video);
+                if (codes.length) onScanned(codes[0].rawValue);
+            } catch (e) {}
+            busy = false;
+        }, 150);
+    }
+
+    async function startZxing() {
+        await loadZxing();
+        const video = document.getElementById('scanVideo');
+        const F = ZXing.BarcodeFormat;
+        const hints = new Map();
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.ITF, F.CODABAR]);
+        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+        zxingReader = new ZXing.BrowserMultiFormatReader(hints, 200);
+        await zxingReader.decodeFromConstraints({ video: VIDEO_CONSTRAINTS, audio: false }, video, (result) => {
+            if (result && scanning) onScanned(result.getText());
+        });
+        scanStream = video.srcObject;
+        setupTorch();
+        tryContinuousFocus();
+    }
+
+    function getTrack() { return scanStream && scanStream.getVideoTracks()[0]; }
+
+    function setupTorch() {
+        const track = getTrack();
+        const caps = track && track.getCapabilities ? track.getCapabilities() : {};
+        const btn = document.getElementById('torchBtn');
+        torchOn = false;
+        btn.classList.remove('on');
+        btn.style.display = caps.torch ? 'block' : 'none';
+    }
+
+    async function toggleTorch() {
+        const track = getTrack();
+        if (!track) return;
+        try {
+            torchOn = !torchOn;
+            await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+            document.getElementById('torchBtn').classList.toggle('on', torchOn);
+        } catch (e) { torchOn = false; }
+    }
+
+    function tryContinuousFocus() {
+        const track = getTrack();
+        if (track && track.applyConstraints) {
+            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+        }
+    }
+
+    function beep() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            osc.type = 'square';
+            osc.frequency.value = 1000;
+            osc.connect(ctx.destination);
+            osc.start();
+            setTimeout(() => { osc.stop(); ctx.close(); }, 120);
+        } catch (e) {}
+        if (navigator.vibrate) navigator.vibrate(80);
+    }
+
+    function onScanned(text) {
+        if (!scanning) return;
+        const code = String(text || '').trim();
+        if (!code) return;
+        beep();
+        closeScanner();
+        document.getElementById('searchInput').value = code.toUpperCase();
+        handleSearch(true);
+        saveHistory(code.toUpperCase());
+    }
+
+    function closeScanner() {
+        scanning = false;
+        clearInterval(scanTimer);
+        scanTimer = null;
+        if (zxingReader) { try { zxingReader.reset(); } catch (e) {} zxingReader = null; }
+        if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+        const video = document.getElementById('scanVideo');
+        video.srcObject = null;
+        document.getElementById('scanner').classList.remove('open');
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && scanning) closeScanner(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && scanning) closeScanner(); });
+</script>
+</body>
+</html>
